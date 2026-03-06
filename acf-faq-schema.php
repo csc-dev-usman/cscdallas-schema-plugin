@@ -66,12 +66,15 @@ class ACF_FAQ_Schema_StripHTML {
             '@graph'   => array_values( $graph ),
         );
 
-        $json_flags = apply_filters( 'acf_faqs_schema_json_options', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+        $json_flags = apply_filters( 'acf_faqs_schema_json_options', JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE );
         $json       = wp_json_encode( $schema, $json_flags );
 
         if ( false === $json ) {
             return;
         }
+
+        // Safety net in case a filter removed the tag-escaping flags: prevent </script> breakout.
+        $json = str_replace( array( '</', '<!--' ), array( '<\/', '<\!--' ), $json );
 
         printf( "<script type=\"application/ld+json\">%s</script>\n", $json );
     }
@@ -281,19 +284,30 @@ class ACF_FAQ_Schema_StripHTML {
                         return input && input.checked;
                     });
 
+                    breadcrumbSelected.textContent = '';
+
                     if (!checked.length) {
-                        breadcrumbSelected.innerHTML = '<span class="acf-faq-schema-empty">No pages selected</span>';
+                        var empty = document.createElement('span');
+                        empty.className = 'acf-faq-schema-empty';
+                        empty.textContent = 'No pages selected';
+                        breadcrumbSelected.appendChild(empty);
                         return;
                     }
 
-                    breadcrumbSelected.innerHTML = checked.map(function(label) {
+                    checked.forEach(function(label) {
                         var input = label.querySelector('input');
                         var text = label.querySelector('span');
-                        var pageId = input ? input.value : '';
-                        var pageName = text ? text.textContent : '';
-
-                        return '<button type="button" class="acf-faq-schema-chip" data-page-id="' + pageId + '">' + pageName + ' <span aria-hidden="true">x</span></button>';
-                    }).join('');
+                        var chip = document.createElement('button');
+                        chip.type = 'button';
+                        chip.className = 'acf-faq-schema-chip';
+                        chip.setAttribute('data-page-id', input ? input.value : '');
+                        chip.appendChild(document.createTextNode((text ? text.textContent : '') + ' '));
+                        var x = document.createElement('span');
+                        x.setAttribute('aria-hidden', 'true');
+                        x.textContent = 'x';
+                        chip.appendChild(x);
+                        breadcrumbSelected.appendChild(chip);
+                    });
                 }
 
                 function filterPages() {
